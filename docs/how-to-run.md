@@ -1,6 +1,6 @@
-# How to run the toolkit
+# How to run the toolkit — bash
 
-Step-by-step instructions for running each part of the toolkit. For what each file does, how the reporting works and more example queries, see the [reference guide](reference.md).
+Step-by-step instructions for running each part of the toolkit from **bash** (Azure Cloud Shell, Linux, macOS or WSL) with the Azure CLI. **On Windows without WSL, use [How to run the toolkit — PowerShell](how-to-run-powershell.md) instead.** For what each file does, how the reporting works and more example queries, see the [reference guide](reference.md).
 
 Everything in this toolkit is **read-only** against your environment, except two optional steps that are clearly marked: deploying the workbook (step 7) and creating the custom policy definition (step 8.3).
 
@@ -57,7 +57,7 @@ Resource Graph only returns results for subscriptions you can read. If clusters 
 | git | macOS: `xcode-select --install` · Ubuntu/WSL: `sudo apt-get install -y git` | `git --version` |
 | gator (step 8 only) | See [step 8](#step-8--test-the-custom-networkpolicy-policy-optional) | `gator --version` |
 
-The shell scripts are bash. They don't run in PowerShell or the Windows command prompt; use WSL or Cloud Shell.
+The shell scripts are bash. They don't run in PowerShell or the Windows command prompt. On Windows, use WSL, Cloud Shell, or the [PowerShell guide](how-to-run-powershell.md) and its PowerShell scripts.
 
 ### A helper for saving results
 

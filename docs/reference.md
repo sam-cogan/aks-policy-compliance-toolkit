@@ -1,12 +1,13 @@
 # Reference guide
 
-What each file in the toolkit does, how the reporting works, the output formats, and example queries for going further. For step-by-step instructions, see [How to run the toolkit](how-to-run.md).
+What each file in the toolkit does, how the reporting works, the output formats, and example queries for going further. For step-by-step instructions, see [How to run the toolkit (bash)](how-to-run.md) or [How to run the toolkit (PowerShell)](how-to-run-powershell.md).
 
 ## Contents
 
 - [Repository layout](#repository-layout)
 - [Current-state queries](#current-state-queries)
 - [In-cluster counts script](#in-cluster-counts-script)
+- [PowerShell query runner](#powershell-query-runner)
 - [How the non-compliance reporting works](#how-the-non-compliance-reporting-works)
 - [Workbook](#workbook)
 - [Reporting queries](#reporting-queries)
@@ -25,16 +26,20 @@ What each file in the toolkit does, how the reporting works, the output formats,
 .
 ├── README.md                                Overview and quick start
 ├── docs/
-│   ├── how-to-run.md                        Step-by-step instructions
+│   ├── how-to-run.md                        Step-by-step instructions (bash)
+│   ├── how-to-run-powershell.md             Step-by-step instructions (PowerShell)
 │   └── reference.md                         This guide
 ├── queries/                                 Current-state inventory
 │   ├── 01-aks-assignments.kql               Policy and initiative assignments, effects, overrides
 │   ├── 02-aks-compliance-by-policy.kql      Cluster-level compliance per assignment and policy
 │   ├── 03-aks-noncompliant-components.kql   Component-level non-compliance counts per cluster and policy
-│   └── 04-constraint-violations.sh          Complete in-cluster Gatekeeper counts for one cluster
+│   ├── 04-constraint-violations.sh          Complete in-cluster Gatekeeper counts for one cluster (bash)
+│   ├── 04-constraint-violations.ps1         The same, in PowerShell
+│   └── Invoke-GraphQuery.ps1                PowerShell runner for any .kql file (paging, CSV output)
 ├── reporting/                               Consolidated non-compliance reporting
 │   ├── workbook/
 │   │   ├── main.bicep                       Deploys the Azure Monitor workbook
+│   │   ├── main.json                        Compiled ARM template of main.bicep (no Bicep install needed)
 │   │   └── aks-policy-noncompliance.workbook.json
 │   ├── queries/                             The workbook views as Resource Graph queries
 │   │   ├── 05-noncompliance-detail.kql
@@ -43,19 +48,31 @@ What each file in the toolkit does, how the reporting works, the output formats,
 │   │   ├── 08-noncompliance-by-policy.kql
 │   │   └── 09-noncompliance-by-cluster-policy.kql
 │   ├── export/
-│   │   └── export-noncompliance.sh          CSV export: whole estate + one file per namespace
+│   │   ├── export-noncompliance.sh          CSV export: whole estate + one file per namespace (bash)
+│   │   └── Export-NonCompliance.ps1         The same, in PowerShell
 │   └── screenshots/                         Workbook examples from a test cluster
 └── custom-policies/
     └── netpol-no-allow-all/                 Custom policy: deny allow-all NetworkPolicy rules
 ```
 
-Every file is read-only against Azure and your clusters, except `main.bicep` (creates the workbook) and the custom policy definition when you choose to create it.
+Every file is read-only against Azure and your clusters, except `main.bicep` / `main.json` (create the workbook) and the custom policy definition when you choose to create it.
+
+### Bash and PowerShell
+
+The bash scripts use the Azure CLI (`az graph query`) and `jq`. The PowerShell scripts use the Az PowerShell modules (`Search-AzGraph` from Az.ResourceGraph), so on Windows they avoid the Azure CLI's quoting problems with multi-line queries. Both run the same `.kql` files and produce the same CSV columns and in-cluster output.
+
+| Task | Bash | PowerShell 7 |
+|---|---|---|
+| Run a query file | `az graph query -q "$(grep -v '^//' <file>.kql)"` | `./queries/Invoke-GraphQuery.ps1 -QueryFile <file>.kql [-OutFile x.csv]` |
+| CSV export | `./reporting/export/export-noncompliance.sh <dir> [mg-id]` | `./reporting/export/Export-NonCompliance.ps1 -OutputPath <dir> [-ManagementGroup <id>] [-IncludeSystemNamespaces]` |
+| In-cluster counts | `./queries/04-constraint-violations.sh [file.json]` | `./queries/04-constraint-violations.ps1 [-InputFile file.json]` |
+| Deploy workbook | `az deployment group create -g <rg> -f reporting/workbook/main.bicep` | `New-AzResourceGroupDeployment -ResourceGroupName <rg> -TemplateFile ./reporting/workbook/main.json` |
 
 ---
 
 ## Current-state queries
 
-Azure Resource Graph queries in `queries/`. Run them in Resource Graph Explorer or with `az graph query`; see [how-to-run, step 3](how-to-run.md#step-3--inventory-policy-assignments).
+Azure Resource Graph queries in `queries/`. Run them in Resource Graph Explorer, with `az graph query` ([bash step 3](how-to-run.md#step-3--inventory-policy-assignments)) or with `Invoke-GraphQuery.ps1` ([PowerShell step 3](how-to-run-powershell.md#step-3--inventory-policy-assignments)).
 
 ### `01-aks-assignments.kql`
 
@@ -86,11 +103,13 @@ One row per cluster, assignment, policy and component type (for example `Pod` or
 
 ## In-cluster counts script
 
-`queries/04-constraint-violations.sh` reads the Gatekeeper constraints that the Azure Policy add-on installs on a cluster.
+`queries/04-constraint-violations.sh` (bash, needs `jq`) and `queries/04-constraint-violations.ps1` (PowerShell 7) read the Gatekeeper constraints that the Azure Policy add-on installs on a cluster.
 
 ```text
-./04-constraint-violations.sh                   # cluster in the current kubectl context
-./04-constraint-violations.sh constraints.json  # saved export, for example from az aks command invoke
+./04-constraint-violations.sh                          # cluster in the current kubectl context
+./04-constraint-violations.sh constraints.json         # saved export, for example from az aks command invoke
+./04-constraint-violations.ps1                         # PowerShell, current kubectl context
+./04-constraint-violations.ps1 -InputFile constraints.json
 ```
 
 | Section | Content |
@@ -102,6 +121,21 @@ One row per cluster, assignment, policy and component type (for example `Pod` or
 The sampled lists come from `status.violations`, which Gatekeeper caps. Use `VIOLATIONS` for totals.
 
 It discovers constraint kinds with `kubectl api-resources --categories=constraint`. It doesn't use `kubectl get constraints`, because on current add-on versions that name also matches the ConstraintTemplate resource and returns templates instead of constraints.
+
+---
+
+## PowerShell query runner
+
+`queries/Invoke-GraphQuery.ps1` runs any toolkit `.kql` file with `Search-AzGraph`.
+
+| Parameter | Meaning |
+|---|---|
+| `-QueryFile` | Path to the `.kql` file (required). `//` comment lines are removed before running. |
+| `-ManagementGroup` | Management group ID(s) to query |
+| `-Subscription` | Subscription ID(s) to query. With neither, the subscriptions in the current Az context are used. |
+| `-OutFile` | Write CSV (UTF-8). Without it, rows are returned to the pipeline for `Format-Table`, `Where-Object` and so on. |
+
+It pages through all results with skip tokens, writes nested values (for example `parameters`, `overrides`) as compact JSON text, and writes timestamps as ISO 8601 UTC. It requires the Az.Accounts and Az.ResourceGraph modules and a signed-in context (`Connect-AzAccount`).
 
 ---
 
@@ -125,7 +159,7 @@ The workbook, reporting queries and CSV export share the same base query.
 
 ## Workbook
 
-`reporting/workbook/aks-policy-noncompliance.workbook.json`, deployed by `main.bicep` as a shared workbook (`Microsoft.Insights/workbooks`, category `workbook`, source `azure monitor`). All queries run against Azure Resource Graph with the permissions of the person viewing it.
+`reporting/workbook/aks-policy-noncompliance.workbook.json`, deployed by `main.bicep` (or its compiled ARM template `main.json`) as a shared workbook (`Microsoft.Insights/workbooks`, category `workbook`, source `azure monitor`). All queries run against Azure Resource Graph with the permissions of the person viewing it.
 
 ### Parameters
 
@@ -178,7 +212,7 @@ To pin a query to an Azure dashboard, run it in Resource Graph Explorer and sele
 
 ## CSV export
 
-`reporting/export/export-noncompliance.sh [output-dir] [management-group-id]` runs the detail query, pages through all results with skip tokens, and writes:
+`reporting/export/export-noncompliance.sh [output-dir] [management-group-id]` (bash) and `reporting/export/Export-NonCompliance.ps1 -OutputPath <dir> [-ManagementGroup <id>] [-Subscription <id>] [-IncludeSystemNamespaces]` (PowerShell) run the detail query, page through all results, and write:
 
 ```text
 <output-dir>/
@@ -201,13 +235,13 @@ To pin a query to an Azure dashboard, run it in Resource Graph Explorer and sele
 | `lastEvaluated` | When the component was last evaluated |
 | `subscriptionId` | Subscription of the cluster |
 
-The script needs no interaction, so it can run on a schedule, for example in an Azure DevOps or GitHub Actions pipeline with an Azure CLI step and a service principal or managed identity with Reader. The output can then be published as a pipeline artifact for owning teams.
+Both scripts need no interaction, so they can run on a schedule, for example in an Azure DevOps or GitHub Actions pipeline (Azure CLI or Azure PowerShell task) with a service principal or managed identity with Reader. The output can then be published as a pipeline artifact for owning teams.
 
 ---
 
 ## Example queries
 
-Run these in Resource Graph Explorer or with `az graph query` (remember to strip `//` comment lines for the CLI).
+Run these in Resource Graph Explorer, with `az graph query` (strip `//` comment lines for the CLI), or save them as a `.kql` file and run them with `Invoke-GraphQuery.ps1`. In PowerShell you can also pass a query directly: `Search-AzGraph -Query @'...'@ -First 1000`.
 
 ### Filter the detail query
 
@@ -283,6 +317,11 @@ policyresources
 kubectl get k8sazurev2noprivilege -o json | jq -r '.items[] | .metadata.name, (.status.violations[]? | "  \(.namespace)/\(.name): \(.message)")'
 ```
 
+```powershell
+(kubectl get k8sazurev2noprivilege -o json | ConvertFrom-Json).items |
+    ForEach-Object { $_.metadata.name; $_.status.violations | ForEach-Object { "  $($_.namespace)/$($_.name): $($_.message)" } }
+```
+
 Replace `k8sazurev2noprivilege` with any `KIND` from the script's totals output, in lower case.
 
 ---
@@ -315,6 +354,14 @@ If you change `template.yaml`, re-run the tests and update the embedded copy in 
 jq --arg c "$(base64 < template.yaml | tr -d '\n')" \
   '.properties.policyRule.then.details.templateInfo.content = $c' azurepolicy.json > azurepolicy.tmp && mv azurepolicy.tmp azurepolicy.json
 ```
+
+```powershell
+$def = Get-Content ./azurepolicy.json -Raw | ConvertFrom-Json -Depth 50
+$def.properties.policyRule.then.details.templateInfo.content = [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD/template.yaml"))
+$def | ConvertTo-Json -Depth 50 | Set-Content ./azurepolicy.json
+```
+
+When creating the definition from PowerShell, submit `azurepolicy.json` unchanged with `Invoke-AzRestMethod` (see [PowerShell step 8.3](how-to-run-powershell.md#step-8--test-the-custom-networkpolicy-policy-optional)). `New-AzPolicyDefinition` drops the empty-object default of `labelSelector`, and assignments then fail with *missing the parameter(s) 'labelSelector'*.
 
 ### Custom policy parameters
 
@@ -358,4 +405,5 @@ In September 2026 the toolkit was tested end to end on an AKS 1.35 cluster (Azur
 - [Azure Resource Graph Explorer quickstart](https://learn.microsoft.com/azure/governance/resource-graph/first-query-portal)
 - [Azure Monitor workbooks](https://learn.microsoft.com/azure/azure-monitor/visualize/workbooks-overview)
 - [Gatekeeper gator CLI](https://open-policy-agent.github.io/gatekeeper/website/docs/gator/)
+- [Search-AzGraph (Az.ResourceGraph)](https://learn.microsoft.com/powershell/module/az.resourcegraph/search-azgraph)
 - [AKS Command Invoke](https://learn.microsoft.com/azure/aks/access-private-cluster)
