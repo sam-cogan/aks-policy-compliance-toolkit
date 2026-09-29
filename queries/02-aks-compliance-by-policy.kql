@@ -1,0 +1,11 @@
+// Cluster-level compliance for every policy that evaluates AKS clusters (one row per assignment + policy)
+policyresources
+| where type =~ 'microsoft.policyinsights/policystates'
+| extend p = properties
+| where tolower(tostring(p.resourceType)) == 'microsoft.containerservice/managedclusters'
+| extend assignment = tostring(p.policyAssignmentName), initiative = tostring(p.policySetDefinitionName),
+         refId = tostring(p.policyDefinitionReferenceId), policy = tostring(p.policyDefinitionName),
+         state = tostring(p.complianceState), cluster = tostring(p.resourceId)
+| summarize clusters = dcount(cluster), nonCompliantClusters = dcountif(cluster, state =~ 'NonCompliant')
+    by assignment, initiative, refId, policy
+| order by nonCompliantClusters desc

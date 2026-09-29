@@ -1,0 +1,8 @@
+// Policy and initiative assignments in scope, with enforcement mode, overrides and parameters
+policyresources
+| where type =~ 'microsoft.authorization/policyassignments'
+| extend p = properties
+| project assignment = name, displayName = tostring(p.displayName), scope = tostring(p.scope),
+          definition = tostring(p.policyDefinitionId), enforcementMode = tostring(p.enforcementMode),
+          definitionVersion = tostring(p.definitionVersion), overrides = p.overrides, parameters = p.parameters
+| order by scope asc

@@ -1,0 +1,107 @@
+{
+  "properties": {
+    "displayName": "Kubernetes NetworkPolicies should not allow traffic from or to any peer",
+    "policyType": "Custom",
+    "mode": "Microsoft.Kubernetes.Data",
+    "description": "Denies NetworkPolicy rules that match all sources or destinations (no from/to list, empty namespaceSelector without podSelector, or 0.0.0.0/0 / ::/0). Open egress restricted to listed ports can be allowed.",
+    "metadata": {
+      "category": "Kubernetes",
+      "version": "1.0.0"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "allowedValues": [
+          "Audit",
+          "Deny",
+          "Disabled"
+        ],
+        "defaultValue": "Audit",
+        "metadata": {
+          "displayName": "Effect"
+        }
+      },
+      "excludedNamespaces": {
+        "type": "Array",
+        "defaultValue": [
+          "kube-system",
+          "gatekeeper-system",
+          "azure-arc",
+          "azure-extensions-usage-system"
+        ],
+        "metadata": {
+          "displayName": "Namespace exclusions"
+        }
+      },
+      "namespaces": {
+        "type": "Array",
+        "defaultValue": [],
+        "metadata": {
+          "displayName": "Namespace inclusions"
+        }
+      },
+      "labelSelector": {
+        "type": "Object",
+        "defaultValue": {},
+        "metadata": {
+          "displayName": "Kubernetes label selector"
+        }
+      },
+      "warn": {
+        "type": "Boolean",
+        "defaultValue": false,
+        "metadata": {
+          "displayName": "Warn"
+        }
+      },
+      "allowPortScopedOpenEgress": {
+        "type": "Boolean",
+        "defaultValue": true,
+        "metadata": {
+          "displayName": "Allow open egress restricted to listed ports"
+        }
+      },
+      "allowedOpenEgressPorts": {
+        "type": "Array",
+        "defaultValue": [
+          53
+        ],
+        "metadata": {
+          "displayName": "Ports allowed for open egress"
+        }
+      }
+    },
+    "policyRule": {
+      "if": {
+        "field": "type",
+        "in": [
+          "Microsoft.ContainerService/managedClusters",
+          "Microsoft.Kubernetes/connectedClusters"
+        ]
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "templateInfo": {
+            "sourceType": "Base64Encoded",
+            "content": "YXBpVmVyc2lvbjogdGVtcGxhdGVzLmdhdGVrZWVwZXIuc2gvdjFiZXRhMQpraW5kOiBDb25zdHJhaW50VGVtcGxhdGUKbWV0YWRhdGE6CiAgbmFtZTogazhzbm9vcGVubmV0d29ya3BvbGljeQogIGFubm90YXRpb25zOgogICAgZGVzY3JpcHRpb246ID4tCiAgICAgIERlbmllcyBOZXR3b3JrUG9saWN5IG9iamVjdHMgY29udGFpbmluZyBhbiBpbmdyZXNzIG9yIGVncmVzcyBydWxlIHRoYXQKICAgICAgbWF0Y2hlcyBhbGwgcGVlcnM6IGEgcnVsZSB3aXRoIG5vIGZyb20vdG8gbGlzdCwgYW4gZW1wdHkgZnJvbS90byBsaXN0LAogICAgICBhIHBlZXIgd2l0aCBhbiBlbXB0eSBuYW1lc3BhY2VTZWxlY3RvciBhbmQgbm8gcG9kU2VsZWN0b3IsIG9yIGFuIGlwQmxvY2sKICAgICAgb2YgMC4wLjAuMC8wIG9yIDo6LzAuIFBvcnQtc2NvcGVkIHJ1bGVzIGNhbiBiZSBhbGxvd2VkIHZpYSBwYXJhbWV0ZXJzLgpzcGVjOgogIGNyZDoKICAgIHNwZWM6CiAgICAgIG5hbWVzOgogICAgICAgIGtpbmQ6IEs4c05vT3Blbk5ldHdvcmtQb2xpY3kKICAgICAgdmFsaWRhdGlvbjoKICAgICAgICBvcGVuQVBJVjNTY2hlbWE6CiAgICAgICAgICB0eXBlOiBvYmplY3QKICAgICAgICAgIHByb3BlcnRpZXM6CiAgICAgICAgICAgIGFsbG93UG9ydFNjb3BlZE9wZW5FZ3Jlc3M6CiAgICAgICAgICAgICAgZGVzY3JpcHRpb246IEFsbG93IGFuIG9wZW4gZWdyZXNzIHJ1bGUgd2hlbiBpdCBpcyByZXN0cmljdGVkIHRvIHRoZSBsaXN0ZWQgcG9ydHMgKGZvciBleGFtcGxlIEROUyBvbiA1MykuCiAgICAgICAgICAgICAgdHlwZTogYm9vbGVhbgogICAgICAgICAgICBhbGxvd2VkT3BlbkVncmVzc1BvcnRzOgogICAgICAgICAgICAgIHR5cGU6IGFycmF5CiAgICAgICAgICAgICAgaXRlbXM6CiAgICAgICAgICAgICAgICB0eXBlOiBpbnRlZ2VyCiAgdGFyZ2V0czoKICAgIC0gdGFyZ2V0OiBhZG1pc3Npb24uazhzLmdhdGVrZWVwZXIuc2gKICAgICAgcmVnbzogfAogICAgICAgIHBhY2thZ2Ugazhzbm9vcGVubmV0d29ya3BvbGljeQoKICAgICAgICB2aW9sYXRpb25beyJtc2ciOiBtc2d9XSB7CiAgICAgICAgICBydWxlIDo9IGlucHV0LnJldmlldy5vYmplY3Quc3BlYy5pbmdyZXNzW2ldCiAgICAgICAgICBvcGVuX3BlZXJzKHJ1bGUsICJmcm9tIikKICAgICAgICAgIG1zZyA6PSBzcHJpbnRmKCJOZXR3b3JrUG9saWN5ICV2LyV2OiBpbmdyZXNzIHJ1bGUgJXYgYWxsb3dzIHRyYWZmaWMgZnJvbSBhbnkgc291cmNlIiwgW2lucHV0LnJldmlldy5vYmplY3QubWV0YWRhdGEubmFtZXNwYWNlLCBpbnB1dC5yZXZpZXcub2JqZWN0Lm1ldGFkYXRhLm5hbWUsIGldKQogICAgICAgIH0KCiAgICAgICAgdmlvbGF0aW9uW3sibXNnIjogbXNnfV0gewogICAgICAgICAgcnVsZSA6PSBpbnB1dC5yZXZpZXcub2JqZWN0LnNwZWMuZWdyZXNzW2ldCiAgICAgICAgICBvcGVuX3BlZXJzKHJ1bGUsICJ0byIpCiAgICAgICAgICBub3QgcG9ydF9zY29wZWRfZXhjZXB0aW9uKHJ1bGUpCiAgICAgICAgICBtc2cgOj0gc3ByaW50ZigiTmV0d29ya1BvbGljeSAldi8ldjogZWdyZXNzIHJ1bGUgJXYgYWxsb3dzIHRyYWZmaWMgdG8gYW55IGRlc3RpbmF0aW9uIiwgW2lucHV0LnJldmlldy5vYmplY3QubWV0YWRhdGEubmFtZXNwYWNlLCBpbnB1dC5yZXZpZXcub2JqZWN0Lm1ldGFkYXRhLm5hbWUsIGldKQogICAgICAgIH0KCiAgICAgICAgIyBObyBwZWVyIGxpc3QgYXQgYWxsOiBtYXRjaGVzIGV2ZXJ5IHNvdXJjZS9kZXN0aW5hdGlvbi4KICAgICAgICBvcGVuX3BlZXJzKHJ1bGUsIGZpZWxkKSB7CiAgICAgICAgICBub3QgcnVsZVtmaWVsZF0KICAgICAgICB9CgogICAgICAgICMgRXhwbGljaXQgZW1wdHkgcGVlciBsaXN0LgogICAgICAgIG9wZW5fcGVlcnMocnVsZSwgZmllbGQpIHsKICAgICAgICAgIGNvdW50KHJ1bGVbZmllbGRdKSA9PSAwCiAgICAgICAgfQoKICAgICAgICAjIEVtcHR5IG5hbWVzcGFjZVNlbGVjdG9yIHdpdGhvdXQgYSBwb2RTZWxlY3RvcjogZXZlcnkgcG9kIGluIGV2ZXJ5IG5hbWVzcGFjZS4KICAgICAgICBvcGVuX3BlZXJzKHJ1bGUsIGZpZWxkKSB7CiAgICAgICAgICBwZWVyIDo9IHJ1bGVbZmllbGRdW19dCiAgICAgICAgICBwZWVyLm5hbWVzcGFjZVNlbGVjdG9yID09IHt9CiAgICAgICAgICBub3QgcGVlci5wb2RTZWxlY3RvcgogICAgICAgIH0KCiAgICAgICAgb3Blbl9wZWVycyhydWxlLCBmaWVsZCkgewogICAgICAgICAgcGVlciA6PSBydWxlW2ZpZWxkXVtfXQogICAgICAgICAgYW55X2NpZHIocGVlci5pcEJsb2NrLmNpZHIpCiAgICAgICAgfQoKICAgICAgICBhbnlfY2lkcigiMC4wLjAuMC8wIikKICAgICAgICBhbnlfY2lkcigiOjovMCIpCgogICAgICAgIHBvcnRfc2NvcGVkX2V4Y2VwdGlvbihydWxlKSB7CiAgICAgICAgICBpbnB1dC5wYXJhbWV0ZXJzLmFsbG93UG9ydFNjb3BlZE9wZW5FZ3Jlc3MKICAgICAgICAgIGNvdW50KHJ1bGUucG9ydHMpID4gMAogICAgICAgICAgbm90IHVubGlzdGVkX3BvcnQocnVsZSkKICAgICAgICB9CgogICAgICAgIHVubGlzdGVkX3BvcnQocnVsZSkgewogICAgICAgICAgcCA6PSBydWxlLnBvcnRzW19dCiAgICAgICAgICBub3QgbGlzdGVkKHAucG9ydCkKICAgICAgICB9CgogICAgICAgIGxpc3RlZChwb3J0KSB7CiAgICAgICAgICBwb3J0ID09IGlucHV0LnBhcmFtZXRlcnMuYWxsb3dlZE9wZW5FZ3Jlc3NQb3J0c1tfXQogICAgICAgIH0K"
+          },
+          "apiGroups": [
+            "networking.k8s.io"
+          ],
+          "kinds": [
+            "NetworkPolicy"
+          ],
+          "excludedNamespaces": "[parameters('excludedNamespaces')]",
+          "namespaces": "[parameters('namespaces')]",
+          "labelSelector": "[parameters('labelSelector')]",
+          "warn": "[parameters('warn')]",
+          "values": {
+            "allowPortScopedOpenEgress": "[parameters('allowPortScopedOpenEgress')]",
+            "allowedOpenEgressPorts": "[parameters('allowedOpenEgressPorts')]"
+          }
+        }
+      }
+    }
+  }
+}

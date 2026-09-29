@@ -1,0 +1,14 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sNoOpenNetworkPolicy
+metadata:
+  name: no-open-networkpolicy
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: ["networking.k8s.io"]
+        kinds: ["NetworkPolicy"]
+    excludedNamespaces: ["kube-system", "gatekeeper-system"]
+  parameters:
+    allowPortScopedOpenEgress: true
+    allowedOpenEgressPorts: [53]

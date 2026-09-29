@@ -1,0 +1,5 @@
+.DS_Store
+*.zip
+aks-noncompliance*/
+*-constraints.txt
+kubeconfig

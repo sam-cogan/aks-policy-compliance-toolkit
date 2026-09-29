@@ -1,0 +1,83 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8snoopennetworkpolicy
+  annotations:
+    description: >-
+      Denies NetworkPolicy objects containing an ingress or egress rule that
+      matches all peers: a rule with no from/to list, an empty from/to list,
+      a peer with an empty namespaceSelector and no podSelector, or an ipBlock
+      of 0.0.0.0/0 or ::/0. Port-scoped rules can be allowed via parameters.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sNoOpenNetworkPolicy
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            allowPortScopedOpenEgress:
+              description: Allow an open egress rule when it is restricted to the listed ports (for example DNS on 53).
+              type: boolean
+            allowedOpenEgressPorts:
+              type: array
+              items:
+                type: integer
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8snoopennetworkpolicy
+
+        violation[{"msg": msg}] {
+          rule := input.review.object.spec.ingress[i]
+          open_peers(rule, "from")
+          msg := sprintf("NetworkPolicy %v/%v: ingress rule %v allows traffic from any source", [input.review.object.metadata.namespace, input.review.object.metadata.name, i])
+        }
+
+        violation[{"msg": msg}] {
+          rule := input.review.object.spec.egress[i]
+          open_peers(rule, "to")
+          not port_scoped_exception(rule)
+          msg := sprintf("NetworkPolicy %v/%v: egress rule %v allows traffic to any destination", [input.review.object.metadata.namespace, input.review.object.metadata.name, i])
+        }
+
+        # No peer list at all: matches every source/destination.
+        open_peers(rule, field) {
+          not rule[field]
+        }
+
+        # Explicit empty peer list.
+        open_peers(rule, field) {
+          count(rule[field]) == 0
+        }
+
+        # Empty namespaceSelector without a podSelector: every pod in every namespace.
+        open_peers(rule, field) {
+          peer := rule[field][_]
+          peer.namespaceSelector == {}
+          not peer.podSelector
+        }
+
+        open_peers(rule, field) {
+          peer := rule[field][_]
+          any_cidr(peer.ipBlock.cidr)
+        }
+
+        any_cidr("0.0.0.0/0")
+        any_cidr("::/0")
+
+        port_scoped_exception(rule) {
+          input.parameters.allowPortScopedOpenEgress
+          count(rule.ports) > 0
+          not unlisted_port(rule)
+        }
+
+        unlisted_port(rule) {
+          p := rule.ports[_]
+          not listed(p.port)
+        }
+
+        listed(port) {
+          port == input.parameters.allowedOpenEgressPorts[_]
+        }

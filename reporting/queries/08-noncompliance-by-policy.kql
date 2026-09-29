@@ -1,0 +1,70 @@
+// Non-compliance rolled up per policy: workloads, namespaces and clusters affected.
+// Source: Azure Resource Graph, microsoft.policyinsights/componentpolicystates (Microsoft.Kubernetes.Data policies).
+// Workload name is inferred from the pod name (ReplicaSet / StatefulSet / Job naming conventions).
+// System namespaces are excluded by the "namespace !in~" line; remove it to include them.
+// Azure Policy holds up to 500 non-compliant records per policy per cluster.
+policyresources
+| where type =~ 'microsoft.policyinsights/componentpolicystates'
+| extend p = properties
+| where tostring(p.complianceState) =~ 'NonCompliant'
+| where tostring(p.resourceId) contains '/providers/Microsoft.ContainerService/managedClusters/'
+| extend clusterKey = tolower(tostring(p.resourceId)), assignmentKey = tolower(tostring(p.policyAssignmentId)),
+         refKey = tolower(tostring(p.policyDefinitionReferenceId))
+| join kind=leftouter (
+    policyresources
+    | where type =~ 'microsoft.authorization/policyassignments'
+    | project assignmentKey = tolower(id), assignmentDisplayName = tostring(properties.displayName),
+              assignmentEffect = tostring(properties.parameters.effect.value), enforcementMode = tostring(properties.enforcementMode)
+  ) on assignmentKey
+| join kind=leftouter (
+    policyresources
+    | where type =~ 'microsoft.policyinsights/policystates'
+    | where tostring(properties.resourceType) =~ 'Microsoft.ContainerService/managedClusters'
+    | project clusterKey = tolower(tostring(properties.resourceId)), assignmentKey = tolower(tostring(properties.policyAssignmentId)),
+              refKey = tolower(tostring(properties.policyDefinitionReferenceId)), stateEffect = tostring(properties.policyDefinitionAction)
+  ) on clusterKey, assignmentKey, refKey
+| extend definitionKey = tolower(tostring(p.policyDefinitionId))
+| join kind=leftouter (
+    policyresources
+    | where type =~ 'microsoft.authorization/policydefinitions'
+    | project definitionKey = tolower(id), customDisplayName = tostring(properties.displayName)
+  ) on definitionKey
+| extend cluster = tostring(split(tostring(p.resourceId), '/')[8]),
+         subscriptionId = tostring(split(tostring(p.resourceId), '/')[2]),
+         objectKind = tostring(p.componentType),
+         componentId = tostring(p.componentId),
+         refId = tostring(p.policyDefinitionReferenceId),
+         assignment = coalesce(assignmentDisplayName, extract('[^/]+$', 0, tostring(p.policyAssignmentId))),
+         initiative = extract('[^/]+$', 0, tostring(p.policySetDefinitionId)),
+         policyGuid = tolower(extract('[^/]+$', 0, tostring(p.policyDefinitionId))),
+         lastEvaluated = todatetime(p.timestamp)
+| extend effect = case(enforcementMode =~ 'DoNotEnforce', 'audit (DoNotEnforce)',
+                       isnotempty(stateEffect), tolower(stateEffect),
+                       isnotempty(assignmentEffect), tolower(assignmentEffect),
+                       'unresolved')
+| extend policy = coalesce(customDisplayName, tostring(dynamic({'021f8078-41a0-40e6-81b6-c6597da9f3ee':'Container images should not include latest image tag','03a4ecdb-0684-4039-be91-2762979e1bc8':'Containers CPU and memory resource requests must be defined','077f0ce1-86d6-4058-bc60-de05067e8622':'Windows pods should not run HostProcess containers','098fc59e-46c7-4d99-9b16-64990e543d75':'Pod hostPath volumes should only use allowed host paths','12db3749-7e03-4b9f-b443-d37d3fb9f8d9':'Containers should only pull images when image pull secrets are present','13cd7ae3-5bc0-4ac4-a62d-4f7c120b9759':'[Deprecated]: Should gate deployment of vulnerable images','16697877-1118-4fb1-9b65-9898ec2509ec':'Pods should only use allowed volume types','1a3b9003-eac6-4d39-a184-4a567ace7645':'Container images must include the preStop hook','1a5b4dca-0b6f-4cf5-907c-56316bc1bf3d':'Should be accessible only over HTTPS','1c6e92c9-99f0-4e55-9cf2-0c234dc48f99':'Should not allow container privilege escalation','1ddac26b-ed48-4c30-8cc5-3a68c79b8001':'Should not allow endpoint edit permissions of ClusterRole/system:aggregate-to-edit','233a2a17-77ca-4fb1-9b6b-69223d272a44':'Services should listen only on allowed ports','2ae2f266-ecc3-4d26-82c5-8c3cb7774f45':'Sets readOnlyRootFileSystem in the Pod spec in init containers to true if it is not set.','2fe7ba7d-f670-41f5-8b70-b61dc7dfbe18':'[Preview]: Prevents containers from being ran as root by setting runAsNotRoot to true.','34c88cd4-5d72-4dbb-bf77-12c3cafe8791':'Must Have Anti Affinity Rules or Topology Spread Constraints Set','3fc4dc25-5baf-40d8-9b05-7fe74c1bc64e':'Should use internal load balancers','423dd1ba-798e-40e4-9c4d-b6902674b423':'Should disable automounting API credentials','42ba1d72-e90f-42f8-bf99-5a1351eed2b1':'Sets Kubernetes cluster containers CPU limits to default values in case not present.','440b515e-a580-421e-abeb-b159a61ddcbc':'[Deprecated]: Containers should only listen on allowed ports','46592696-4c7b-4bf3-9e45-6c2763bdc0a6':'Pods should use specified labels','47a1ee2f-2a2a-4576-bf2a-e0e36709c2b8':'Containers should not share host namespaces','48940d92-ff05-449e-9111-e742d9280451':'Reserved System Pool Taints','4ee3ee6a-96ea-4d25-9c00-17f11d2e02c8':'[Preview]: Sets Privilege escalation in the Pod spec in init containers to false.','4f3823b6-6dac-4b5a-9c61-ce1afb829f17':'Should use Container Storage Interface(CSI) driver StorageClass','50c83470-d2f0-4dda-a716-1938a4825f62':'Containers should only use allowed pull policy','511f5417-5d12-434d-ab2e-816901e72a5e':'Containers should only use allowed AppArmor profiles','53a4a537-990c-495a-92e0-7c21a465442c':'Cannot Edit Individual Nodes','5485eac0-7e8f-4964-998b-a44f4f0c1e75':'Windows containers should not run as ContainerAdministrator','56d0a13f-712f-466b-8416-56fb354fb823':'Containers should not use forbidden sysctl interfaces','57dde185-5c62-4063-b965-afbb201e9c1c':'Windows containers should only run with approved user and domain user group','57f274ef-580a-4ed2-bcf8-5c6fa3775253':'Sets automountServiceAccountToken in the Pod spec in containers to false.','5c58d54b-87f0-4dcd-83ea-e855fc988997':'[Preview]: Sets UnhealthyPodEvictionPolicy to AlwaysAllow','5e5a0673-649e-4d50-bf9d-5a387a4e2081':'[Preview]: Containers should use only allowed sysctl interfaces','5f86d473-38a8-46c9-bdfe-d7fa3b9836bf':'Sets Kubernetes cluster containers memory limits to default values in case not present.','65280eef-c8b4-425e-9aec-af55e55bf581':'Should not use naked pods','6bcd4321-fb89-4e3e-bf6c-999c13d47f43':'[Preview]: Sets Kubernetes cluster init containers secure computing mode profile type to RuntimeDefault if not present.','6f87d474-38a9-46c9-bdfe-d7fa3b9836bf':'[Preview]: Sets Kubernetes cluster containers secure computing mode profile type to RuntimeDefault if not present.','82985f06-dc18-4a48-bc1c-b9f4f0098cfe':'Pods should only use approved host network and port list','8e875f96-2c56-40ca-86db-b9f6a0be7347':'Sets readOnlyRootFileSystem in the Pod spec to true if it is not set.','95edb821-ddaf-4404-9732-666045e056b4':'Should not allow privileged containers','975ce327-682c-4f2e-aa46-b9598289b86c':'Containers should only use allowed seccomp profiles','97de439f-fd35-4d43-a693-3644f51a51fd':'[Preview]: Sets Kubernetes cluster init containers securityContext.runAsUser fields to 1000, a non-root user id','9a5f4e39-e427-4d5d-ae73-93db00328bec':'Kubernetes resources should have required annotations','9f061a12-e40d-4183-a00e-171812443373':'Should not use the default namespace','a22123bd-b9da-4c86-9424-24903e91fd55':'No AKS Specific Labels','a27c700f-8a22-44ec-961c-41625264370b':'Should not use specific security capabilities','a2abc456-f0ae-464b-bd3a-07a3cdbd7fb1':'Windows containers should not overcommit cpu and memory','a3dc4946-dba6-43e6-950d-f96532848c9f':'Should ensure that the cluster-admin role is only used where required','a8e3ce3c-cac3-4402-a28a-03ee3ede9790':'[Preview]: Sets Kubernetes cluster container securityContext.runAsUser fields to 1000, a non-root user id','b0fdedee-7b9e-4a17-9f5d-5e8e912d2f01':'Services should use unique selectors','b1a9997f-2883-4f12-bdff-2280f99b5915':'Ensure cluster containers have readiness or liveness probes configured','b2fd3e59-6390-4f2b-8247-ea676bd03e2d':'[Deprecated]: Enforce unique ingress hostnames across namespaces in Kubernetes cluster','b81f454c-eebb-4e4f-9dfe-dca060e8a8fd':'[Preview]: Should restrict creation of given resource type','b89ebd51-73f9-4e3e-a1ac-c1c143aaa500':'[Preview]: Should use unique ingress hostnames','c26596ff-4d70-4e6a-9a30-c2506bd2f80c':'Containers should only use allowed capabilities','c812272d-7488-495f-a505-047d34b83f58':'Mutate K8s Init Container to drop all capabilities','c873b3ba-c605-42e4-a64b-a142a93826fc':'Mutate K8s Container to drop all capabilities','ca8d5704-aa2b-40cf-b110-dc19052825ad':'Should minimize wildcard use in role and cluster role','cf426bb8-b320-4321-8545-1b784a5df3a4':'[Image Integrity] Should only use images signed by notation','d2e7ea85-6b44-4317-a0be-1b951587f626':'Should not grant CAP_SYS_ADMIN security capabilities','d46c275d-1680-448d-b2ec-e495a3b6cc89':'Services should only use allowed external IPs','d77df159-718b-4aca-b94b-8e8890a98231':'[Preview]: Sets Privilege escalation in the Pod spec to false.','d77f191e-2338-45d0-b6d4-4ee1c586a192':'Sets maxUnavailable pods to 1 for PodDisruptionBudget resources','d8c942c6-16a3-400b-8f2e-785f44030036':'Should specify host in ingress resource rules','d9e8f2c1-4c5a-4f5c-8b5a-2abf1e9f7b4d':'[Preview]: Should implement accurate Pod Disruption Budgets','df49d893-a74c-421d-bc95-c663042e5b80':'Containers should run with a read only root file system','e16d171b-bfe5-4d79-a525-19736b396e92':'Restricts the CriticalAddonsOnly taint to just the system pool.','e1e6c427-07d9-46ab-9689-bfa85431e636':'Pods and containers should follow SELinux security standards','e24df237-32cb-4a6c-a2f6-85b499cda9f2':'Prints a message if a mutation is applied','e345eecc-fa47-480f-9e88-67dcc122b164':'Containers CPU and memory resource limits should not exceed the specified limits','f06ddb64-5fa3-4b77-b166-acb36f7f6042':'Pods and containers should only run with approved user and group IDs','f4a8fce0-2dd5-4c21-9a36-8f0ec809d663':'Pod FlexVolume volumes should only use allowed drivers','f85eb0dd-92ee-40e9-8a76-db25a507d6d3':'Containers should only use allowed ProcMountType','fe74a23d-79e4-401c-bd0d-fd7a5b35af32':'[Preview]: Sets Kubernetes cluster Pod securityContext.runAsUser fields to 1000, a non-root user id','febd0533-8e55-448f-b837-bd0e06f16469':'Containers should only use allowed images','fed6510d-00b9-40db-a347-933125a6a327':'[Preview]: Prevents init containers from being ran as root by setting runAsNotRoot to true.'})[policyGuid]), refId, policyGuid)
+| extend namespace = iff(componentId contains '/', tostring(split(componentId, '/')[0]), '(cluster-scoped)'),
+         component = iff(componentId contains '/', tostring(split(componentId, '/')[1]), componentId)
+| extend dep = extract('^(.+)-[bcdfghjklmnpqrstvwxz2456789]{5,10}-[bcdfghjklmnpqrstvwxz2456789]{5}$', 1, component),
+         cron = extract('^(.+)-[0-9]{8,}-[bcdfghjklmnpqrstvwxz2456789]{5}$', 1, component),
+         sts = extract('^(.+)-[0-9]{1,3}$', 1, component),
+         ds = extract('^(.+)-[bcdfghjklmnpqrstvwxz2456789]{5}$', 1, component)
+| extend workload = case(objectKind !~ 'pod', component,
+                         isnotempty(cron), cron,
+                         isnotempty(dep), dep,
+                         isnotempty(sts), sts,
+                         isnotempty(ds), ds,
+                         component),
+         workloadKind = case(objectKind !~ 'pod', objectKind,
+                             isnotempty(cron), 'CronJob',
+                             isnotempty(dep), 'Deployment',
+                             isnotempty(sts), 'StatefulSet',
+                             isnotempty(ds), 'DaemonSet / Job',
+                             'Pod')
+| where namespace !in~ (split('kube-system,gatekeeper-system,azure-arc,azure-extensions-usage-system,flux-system', ','))
+| summarize violations = count(), workloads = dcount(strcat(cluster, '/', namespace, '/', workload)),
+            namespaces = dcount(namespace), clusters = dcount(cluster), effects = make_set(effect, 5),
+            assignments = make_set(assignment, 10)
+    by policy
+| extend effects = strcat_array(effects, ', '), assignments = strcat_array(assignments, ', ')
+| order by workloads desc

@@ -1,0 +1,14 @@
+// Component-level (pod, NetworkPolicy, etc.) non-compliance counts per cluster and policy.
+// componentpolicystates carries IDs only: assignment and definition names are parsed from them.
+// Azure Policy holds up to 500 non-compliant records per policy per cluster.
+policyresources
+| where type =~ 'microsoft.policyinsights/componentpolicystates'
+| extend p = properties
+| where tostring(p.complianceState) =~ 'NonCompliant'
+| extend cluster = tostring(split(tostring(p.resourceId), '/')[8]),
+         assignment = extract('[^/]+$', 0, tostring(p.policyAssignmentId)),
+         refId = tostring(p.policyDefinitionReferenceId),
+         definition = extract('[^/]+$', 0, tostring(p.policyDefinitionId)),
+         componentType = tostring(p.componentType), componentId = tostring(p.componentId)
+| summarize violations = count(), sample = take_any(componentId) by cluster, assignment, refId, definition, componentType
+| order by violations desc

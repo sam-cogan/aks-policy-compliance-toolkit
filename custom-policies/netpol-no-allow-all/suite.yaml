@@ -1,0 +1,16 @@
+kind: Suite
+apiVersion: test.gatekeeper.sh/v1alpha1
+metadata:
+  name: no-open-networkpolicy
+tests:
+  - name: open-networkpolicy
+    template: template.yaml
+    constraint: constraint.yaml
+    cases:
+      - {name: allow-all-ingress-and-egress, object: tests/allow-all-system-namespace.yaml, assertions: [{violations: 2}]}
+      - {name: empty-namespace-selector, object: tests/empty-ns-selector.yaml, assertions: [{violations: 1}]}
+      - {name: internet-cidr-egress, object: tests/internet-egress.yaml, assertions: [{violations: 1}]}
+      - {name: dns-only-open-egress-allowed, object: tests/dns-egress.yaml, assertions: [{violations: no}]}
+      - {name: open-egress-on-443-denied, object: tests/open-egress-443.yaml, assertions: [{violations: 1}]}
+      - {name: default-deny-allowed, object: tests/default-deny.yaml, assertions: [{violations: no}]}
+      - {name: scoped-rules-allowed, object: tests/scoped-allow.yaml, assertions: [{violations: no}]}
