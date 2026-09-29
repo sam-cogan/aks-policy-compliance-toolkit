@@ -2,10 +2,18 @@
 # Per-namespace violation counts from the Gatekeeper constraints installed by the Azure Policy add-on.
 # status.totalViolations is the full count; status.violations is a capped sample.
 # enforcementAction: dryrun = Audit, deny = Deny, warn = Warn.
+#
+# Usage:
+#   ./04-constraint-violations.sh                   # reads the cluster in the current kubectl context
+#   ./04-constraint-violations.sh constraints.json  # reads a saved export (for example from az aks command invoke)
 set -euo pipefail
-KINDS=$(kubectl api-resources --categories=constraint -o name | paste -sd, -)
-if [[ -z "$KINDS" ]]; then echo "No Gatekeeper constraint kinds found (is the Azure Policy add-on enabled?)"; exit 1; fi
-DATA=$(kubectl get "$KINDS" -o json)
+if [[ $# -ge 1 ]]; then
+  DATA=$(cat "$1")
+else
+  KINDS=$(kubectl api-resources --categories=constraint -o name | paste -sd, -)
+  if [[ -z "$KINDS" ]]; then echo "No Gatekeeper constraint kinds found (is the Azure Policy add-on enabled?)"; exit 1; fi
+  DATA=$(kubectl get "$KINDS" -o json)
+fi
 
 echo "== Totals per constraint"
 echo "$DATA" | jq -r '.items[]
